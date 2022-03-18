@@ -1,0 +1,73 @@
+---
+title: "EDA"
+author: "__Gwyn Omar Magoncia__"
+date: _Last Updated:_ `r format(Sys.time(), '%B %d, %Y')`
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+_Date Created_: `r format(as.Date("2020-04-22"), "%B %d, %Y")`
+
+<br>
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(comment = NA, echo = FALSE, warning = FALSE)
+library('data.table')
+library('magrittr')
+library('lubridate')
+library('kableExtra')
+library('here')
+library('ggplot2')
+```
+
+```{r getting-raw-data}
+df <- readRDS(here::here("Data", "Processed", "states_daily.rds"))
+setkeyv(df, c("state", "date"))
+
+cols <- c(3:12, 15:25, 28)
+df[, (cols) := lapply(.SD, as.numeric), .SDcols = cols]
+```
+
+```{r sourcing-functions}
+source(here::here("R", "theme.R"))
+```
+
+```{r testing-rates}
+# Adding day column (incremental) per state. First day corresponds to the day to which testing results first appeared.
+testing <- copy(df)
+
+states_testing <- testing[total > 0, day := 1:.N, by = "state"] %>% .[!is.na(day)]
+
+# Adding testing rate column per state. It corresponds to the number of tests done per 1 million population
+states_testing <- states_testing[state_code %in% c("CA", "IL", "MA", "NJ", "PA", "FL", "LA", "MI", "NY"),] %>%
+                               .[, testing_rate := round(total / population * 1000000, 0)]
+```
+
+```{r tr-plot}
+states_testing %>%
+  ggplot(aes(x = day, y = testing_rate, color = state)) +
+  geom_line(size = 1) +
+  labs(x = "Day", y = "Testing Rate", title = "Daily Testing Rate") +
+  theme_joy_s
+```
+
+```{r case-fatality-rate}
+# Adding day column (incremental) per state. First day corresponds to the day to which the first death appeared.
+fatality <- copy(df)
+
+states_fatality <- fatality[death > 0, day := 1:.N, by = "state"] %>% .[!is.na(day)]
+
+# Adding case fatality rate column per state. It measures the disease severity.
+states_fatality <- states_fatality[state_code %in% c("CA", "IL", "MA", "NJ", "PA", "FL", "LA", "MI", "NY"),] %>%
+                                 .[, cfr := death / posNeg * 100]
+```
+
+```{r cfr-plot}
+states_fatality %>%
+  ggplot(aes(x = day, y = cfr, color = state)) +
+  geom_line(size = 1) +
+  labs(x = "Day", y = "CFR", title = "Daily Case Fatality Rate") +
+  theme_joy_s
+```
+

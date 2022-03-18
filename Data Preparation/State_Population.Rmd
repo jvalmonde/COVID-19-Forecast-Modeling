@@ -1,0 +1,79 @@
+---
+title: "State Population"
+author: "__Gwyn Omar Magoncia__"
+date: _Last Updated:_ `r format(Sys.time(), '%B %d, %Y')`
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+_Date Created_: `r format(as.Date("2020-04-22"), "%B %d, %Y")`
+
+<br>
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(comment = NA, echo = FALSE, warning = FALSE)
+library('data.table')
+library('magrittr')
+library('here')
+library('DT')
+```
+
+```{r getting-raw-data}
+table_names <- c("cases_by_geography", "msa_summary", "states_daily")
+
+files <- list.files(path = here::here("Data", "Raw"), pattern = ".rds")
+
+for (i in seq_along(files)) {
+    
+  assign(table_names[i], 
+         readRDS(here::here("Data", "Raw", files[i])))
+    
+}
+
+setnames(states_daily, "state", "state_code") # Full state name will be joined later
+
+rm(table_names, files, i)
+```
+
+```{r state-code-and-population-per-state}
+# Overall, there are 56 states. This is the same as reported in the states_daily file.
+# The population is also updated. It reflects the 2019 population per state.
+states_pop <- cases_by_geography[, .(county, state, population)] %>%
+                              .[county == "",] %>% unique() %>%
+                              .[, .(state, population)]
+
+# Iowa had two state codes: IA and IL. Only the IA state code was used. 
+# There are only 50 states in the msa_summary table.
+states_code <- msa_summary[, .(state_name, state_code)] %>% unique() %>% .[-16,] 
+setnames(states_code, old = "state_name", new = "state")
+
+# The six other states that are not present in the msa_summary table.
+other_states <- cases_by_geography[!(state %in% msa_summary$state_name),] %>% .[, .(state)] %>% unique()
+other_states_codes <- data.table(c("DC", "PR", "AS", "VI", "GU", "MP"))
+setnames(other_states_codes, "state_code")
+other_states <- cbind(other_states, other_states_codes)
+
+# Joining the six other states to the other 50
+states_code <- rbind(states_code, other_states)
+setkey(states_code, "state")
+
+# Adding state codes for the six other states in table with the population data
+states_pop <- merge(states_pop, states_code, by = "state") %>% .[, .(state, state_code, population)]
+
+# Adding state_code and popluation to the states_daily table
+states_daily <- merge(states_daily, states_pop, by = "state_code")
+setkeyv(states_daily, c('state', 'date'))
+states_daily[state == "Washington, D.C.", state := "District of Columbia"]
+
+states_pop %>%
+  DT::datatable()
+```
+
+```{r saving-tables, eval = FALSE}
+'
+# Only run this chunk once by removing the '' symbols
+saveRDS(states_daily, here::here("Data", "Processed", "states_daily.rds"))
+'
+```
+

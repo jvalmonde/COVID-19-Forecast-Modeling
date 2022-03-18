@@ -1,0 +1,535 @@
+---
+title: " COVID-19 Forecast Modeling"
+author: "__Joyvalerie Mondejar, Gwyn Omar Magoncia, Bernard Marquez__"
+date: _Last Updated:_ `r format(Sys.time(), '%B %d, %Y')`
+output: 
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float: true
+editor_options: 
+  chunk_output_type: console
+---
+
+_Date Created_: `r format(as.Date("2020-04-22"), "%B %d, %Y")`
+
+<!--
+This file explores the data for the research question "What percentage of the population (by state) has already had COVID-19, based on testing and death data?"
+
+__Input__: Files containing the daily COVID-19 data of all states in the US, namely, state_daily.rds...   
+
+__Output__: Percentage of the population which have been exposed to COVID-19
+
+-->
+
+
+<!-- 
+HTML comment
+-->
+`r # Comment using R code, note that in-line R statements require use of single back-quote characters (upper-left part of keyboard)`
+
+<!-- This is a button that appears when scrolling down that returns to the top of the page -->
+<script>
+window.onscroll = function() {scrollFunction()};
+
+function scrollFunction() {
+    if (document.body.scrollTop > 20 || document.documentElement.scrollTop > 20) {
+        document.getElementById("myBtn").style.display = "block";
+    } else {
+        document.getElementById("myBtn").style.display = "none";
+    }
+}
+function topFunction() {
+    document.body.scrollTop = 0; // For Safari
+    document.documentElement.scrollTop = 0; // For Chrome, Firefox, IE and Opera
+}
+</script>
+<button onclick="topFunction()" id="myBtn" title="Return to top" style = "display: none; 
+position: fixed; top: 40px; left: 20px;">Return to Top</button>
+
+<!-- This style tag changes the formatting of div tags that are of class tabset -->
+<style>
+.source {
+  padding: 0;
+}
+body {
+  margin: 0px;
+  padding: 0px;
+  text-align: justify;
+}
+nav {                               <!-- <nav> tag defines a set of navigation links. --> 
+  width: 0;
+}
+div.tabset {                        <!-- <nav> tag defines a set of navigation links. --> 
+  font-size: 16px;
+}
+tabset level2 {
+  background-color: orange;
+}
+div.tabset a {
+  text.align: center;
+}
+code {
+  background-color: #EEDDFF;
+}
+</style>
+
+<script>
+$(document).ready(function(){
+    $('[data-toggle="popover"]').popover(); 
+});
+</script>
+
+<br>
+
+## __Introduction__
+
+__Research Question__: What percentage of the population (by state) has already had COVID-19, based on testing and death data?
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(comment = NA, echo = FALSE, warning = FALSE, message = FALSE)
+
+library('here')
+library('data.table')
+library('magrittr')
+library('lubridate')
+library('ggplot2')
+library('gridExtra')
+library('docstring')
+library('knitr')
+library('kableExtra')
+library('arsenal')
+library('DataCombine')
+```
+
+```{r uhg colors, echo=FALSE}
+uhg1 = rgb(red = 45, green = 95, blue = 167, maxColorValue = 255)      # #2d5fa7 UHG blue
+uhg2 = rgb(red = 247, green = 152, blue = 55, maxColorValue = 255)     # #f79837 UHG orange
+uhg3 = rgb(red = 114, green = 192, blue = 96, maxColorValue = 255)     # #72c060 UHG green
+uhg4 = rgb(red = 234, green = 75, blue = 77, maxColorValue = 255)      # #ea4b4d UHG red
+uhg5 = rgb(red = 2, green = 142, blue = 167, maxColorValue = 255)      # #028ea7 UHG teal
+uhg6 = rgb(red = 103, green = 93, blue = 168, maxColorValue = 255)     # #675da8 UHG purple
+uhgGrey = rgb(red = 166, green = 166, blue = 166, maxColorValue = 255) # #A6A6A6 UHG grey 
+col7 = "#f032e6"  # magenta
+col8 = "#808000"  # Olive
+col9 = "#bcf60c"  # lime
+col10 = "#46f0f0" # cyan
+col11 = "#ffd8b1" # coral
+col12 = "#e6beff" # lavender
+col13 = "#fabebe" # pink
+col14 = "#9a6324" # brown
+col15 = "#fffac8" # beige
+```
+
+```{r plot theme}
+text_size_ = 13
+text_size_ = 12
+theme_joy_s = ggplot2::theme(axis.line = ggplot2::element_line(color = uhgGrey, size = 2),
+                    panel.grid.major.y = ggplot2::element_line(color = uhgGrey, size = 0.2, 
+                                                               linetype = 2),
+                    panel.background = ggplot2::element_rect(fill = 'white'),
+                    axis.ticks = ggplot2::element_line(size = 1.5),        # Add axis ticks
+                    axis.ticks.length = ggplot2::unit(0.15, 'cm'),
+                    axis.text = ggplot2::element_text(size = text_size_, color = "#222222"),
+                    axis.text.x = ggplot2::element_text(size = text_size_, vjust = 0.9),
+                    axis.text.y = ggplot2::element_text(size = text_size_),
+                    axis.title = ggplot2::element_text(size = text_size_, face = 'bold'),
+                    legend.position = 'bottom',
+                    legend.title = ggplot2::element_text(size = text_size_),
+                    legend.text = ggplot2::element_text(size = text_size_ - 0),
+                    legend.margin = ggplot2::margin(t = 0.2, r = 0.2, l = 0.2, b = 0.2, 
+                                                    unit = 'cm'),
+                    legend.background = ggplot2::element_blank(),
+                    legend.key = ggplot2::element_blank(),     # remove the sorrounding gray color
+                    panel.spacing = ggplot2::unit(5, 'pt'),
+                    strip.text = ggplot2::element_text(size = text_size_ + 1),
+                    plot.title = ggplot2::element_text(size = text_size_ + 4, face = 'bold', 
+                                                       hjust = 0),
+                    plot.subtitle = ggplot2::element_text(size = text_size_ + 2, hjust = 0.5))
+```
+
+
+```{r getting-data}
+# states_daily <- readRDS(here::here("Data", "Raw", "states_daily.rds"))
+states_daily <- readRDS(here::here("Data", "Processed", "states_daily.rds"))
+states_daily[, hash := NULL]
+
+states_N <- states_daily[, uniqueN(state)]
+states_daily[, row := 1:.N]
+states_daily[, population := as.integer(population)]
+
+```
+
+```{r, eval=FALSE}
+states_daily[state_code == "WA", summary(positive)]
+states_daily[state_code == "DC", summary(positive)]
+states_daily[state_code == "WA", summary(population)]
+states_daily[state_code == "DC", summary(population)]
+states_daily[state_code == "WA", summary(total)]
+states_daily[state_code == "DC", summary(total)]
+states_daily[state_code == "WA", summary(totalTestResults)]
+states_daily[state_code == "DC", summary(totalTestResults)]
+```
+
+
+```{r source-functions, include = FALSE, eval=FALSE}
+# getting data must be run daily 
+source(here::here("R", "Getting_Data"))
+```
+
+```{r exploration, eval=FALSE}
+head(states_daily)
+names(states_daily)
+
+states_daily[, totalTestRes := sum(positive, negative, na.rm = TRUE), keyby = .(state, date)] 
+# total = totalTestResults + pending
+states_daily[, total_ := sum(totalTestResults, pending, na.rm = TRUE), keyby = .(state, date) ]
+# states_daily[, total_ := totalTestResults + pending, keyby = .(state, date) ]
+all.equal(states_daily$total, states_daily$total_)  # "'is.NA' value mismatch: 1974 in current 2 in target"
+states_daily[, .(state, date, totalTestRes, totalTestResults, positive, negative, pending, posNeg, total, total_)]
+all.equal(states_daily$totalTestResults, states_daily$posNeg)  # TRUE
+all.equal(states_daily$total, states_daily$posNeg)  # dili
+all.equal(states_daily$total, states_daily$posNeg)  # dili
+
+states_daily[total != totalTestResults, .(date, state, positive, negative, pending, recovered, dateChecked, death,
+                                          total,totalTestResults, posNeg, fips, totalTestResultsIncrease,
+                                          totalTestRes, row)] # 544
+states_daily[total != posNeg, .(date, state, positive, negative, pending, recovered, dateChecked, death, total,
+                                totalTestResults, posNeg, fips, totalTestResultsIncrease, totalTestRes, row)] # 544
+
+tot <- states_daily[, .(totalTestRes = sum(positive, negative, na.rm = TRUE), totalTestResults, positive, negative,
+                        pending, posNeg, total, total_, row), keyby = .(state, date)] 
+dim(tot)  # 2564
+all.equal(tot$Tot, tot$totalTestResults)
+summary(tot)
+tot[totalTest != totalTestResults,] # empty
+
+sure <- tot[totalTestRes == totalTestResults,]  # 2562
+# two rows ... totalTest that is not equal to totalTestResults are just having 0 and NA, respectively
+states_daily[!row %in% sure$row, ]
+
+sure <- tot[total == total_,] 
+states_daily[!row %in% sure$row, ]
+
+not_sure <- tot[(is.na(totalTestRes) | is.na(totalTestResults)) & pending > 0] # empty
+not_sure <- tot[pending > 0]
+states_daily[state %in% not_sure$state & date %in% not_sure$date, .(state, date, totalTestRes, totalTestResults, positive, negative, pending, posNeg, total, total_, recovered, death, deathIncrease)]
+```
+
+```{r rates}
+# Let confirmPerc be the percentage of the tests who have positve results
+states_daily[, confirmPerc := positive / totalTestResults * 100, keyby = .(state, date)]
+
+# Let positiveRate be the percentage of people having COVID-19 per state
+states_daily[, positiveRate := positive / total * 100, keyby = .(state, date)]
+
+# Let infectionRate be the percentage of the population who have COVID-19
+states_daily[, infectionRate := positive / population * 100, keyby = .(state, date)]
+
+# Let testingRate be the testing rate per state
+states_daily[, testingRate := total / population * 100, keyby = .(state, date)]
+
+
+states_daily[total > 0, testDay := 1:.N, by = .(state)]
+states_daily[positive > 0, posDay := 1:.N, by = .(state)]
+
+# cols <- c('state',  'date', 'testDay', 'posDay', 'totalTestResults', 'positive', 'negative', 'pending',
+#           'total', 'recovered', 'death', 'hospitalized' , 'confirmPerc', 
+#           'positiveRate', 'positiveIncrease', 'negativeIncrease', 'deathIncrease', 'hospitalizedCurrently',
+#           'hospitalizedCumulative', 'hospitalizedIncrease')
+
+cols <- c('state_code', 'state',  'date', 'testDay', 'posDay', 'totalTestResults', 'positive', 'negative', 'pending',
+          'total', 'recovered', 'death', 'hospitalized' , 'confirmPerc', 'infectionRate', 'testingRate',
+          'positiveRate', 'positiveIncrease', 'negativeIncrease', 'deathIncrease', 'hospitalizedCurrently',
+          'hospitalizedCumulative', 'hospitalizedIncrease')
+
+states_testing <- states_daily[total > 0, day := 1:.N, by = "state"] %>% .[!is.na(day)] %>% 
+  .[, ..cols]
+
+states_positive <- states_daily[positive > 0, day := 1:.N, by = "state"] %>% .[!is.na(day)] %>% 
+  .[, ..cols]
+
+
+
+top_infect <- states_daily[, .SD[unique(c(.N))], by=state, .SDcols= cols] %>% 
+  .[order(-infectionRate)] %>% head(10)
+
+top_test <- states_daily[, .SD[unique(c(.N))], by=state, .SDcols= cols] %>% 
+  .[order(-testingRate)] %>% head(10)
+
+top_conf <- states_daily[, .SD[unique(c(.N))], by=state, .SDcols= cols] %>% 
+  .[order(-confirmPerc)] %>% head(10)
+# states_daily[state %in% top_conf$state, ..cols]
+
+```
+
+```{r, include=FALSE}
+# displays data of selected columns
+states_daily[, ..cols]
+# getting the head of the latest selected data of the states
+states_daily[, .SD[unique(c(.N))], by=state, .SDcols= cols] %>% 
+  .[order(-infectionRate)] %>% head(10)
+
+states_daily[, .SD[unique(c(.N))], by=state, .SDcols= cols] %>% 
+  .[order(-infectionRate)] %>% head(10)
+
+
+states_daily[state == "NY", .(state, date, totalTestResults, positive, negative, pending, posNeg, total, recovered, death, deathIncrease)]
+```
+
+```{r positive}
+top_pos <- states_testing[, .SD[unique(c(.N))], by=state, .SDcols= cols] %>% 
+  .[order(-positive)] %>% head(10)
+
+tab <- states_daily[state %in% top_pos$state] %>% 
+        .[, state_code := factor(state_code, levels = c('NY', 'NJ', 'MA', 'CA', 'IL', 'PA', 'MI', 'FL', 
+                                                        'LA', 'CT'))] %>% 
+        .[, state := factor(state, levels = c('New York', 'New Jersey', 'Massachusetts', 'California', 'Illinois',
+                                              'Pennsylvania', 'Michigan', 'Florida', 'Louisiana', 'Connecticut'))]
+ggplot(tab, aes(x = date, y = positive, colour = state)) +
+  geom_line(size = 1) +
+  expand_limits(y=0) +                            # ensures y axis to start at 0
+  scale_colour_manual(values = c(uhg1, uhg2, uhg3, uhg4, uhg5, uhg6, col7, col8, col9, col10, col11, col12, col13,
+                                 col14, col15)) +
+  theme_joy_s +
+  guides(col = guide_legend(nrow = 2, byrow = TRUE)) +
+  theme(legend.title = element_blank()) +
+  labs(x = "Date", y = "Confirmed Cases",
+       title = "Confirmed Cases"#,
+       # subtitle = "Life expectancy in Philippines and the US"
+  )
+```
+      
+```{r testingRate}
+top_test <- states_testing[, .SD[unique(c(.N))], by=state, .SDcols= cols] %>% 
+  .[order(-testingRate)] %>% .[, .(rank = 1:.N, state, state_code, testingRate)] %>% head(10)
+
+tab <- states_daily[state %in% top_test$state] %>% 
+        .[, state_code := factor(state_code, levels = c('RI', 'NY', 'LA', 'MA', 'UT', 'DC', 'NJ', 'VT', 'ND', 
+                                                        'CT'))] %>% 
+        .[, state := factor(state, levels = c('Rhode Island', 'New York', 'Louisiana', 'Massachusetts', 'Utah', 
+                                              'District of Columbia', 'New Jersey', 'Vermont', 'North Dakota',
+                                              'Connecticut'))]
+  
+ggplot(tab, aes(x = day, y = testingRate, colour = state)) +
+  geom_line(size = 1) +
+  expand_limits(y=0) +                            # ensures y axis to start at 0
+  scale_colour_manual(values = c(uhg1, uhg2, uhg3, uhg4, uhg5, uhg6, col7, col8, col9, col10, col11, col12, col13,
+                                 col14, col15)) +
+  scale_x_continuous(breaks = seq(0, 60, 5)) +
+  scale_y_continuous(limits = c(0, 5), breaks = seq(0, 5, 1)) +
+  theme_joy_s +
+  # guides(fill = guide_legend(nrow = 2, byrow = T)) +
+  guides(col = guide_legend(nrow = 2, byrow = TRUE)) +
+  theme(legend.title = element_blank()) +
+  labs(x = "Day Since First Testing", y = "Testing Rate (%)",
+       title = "Daily Cumulative Testing Rate"#,  
+       # subtitle = "Life expectancy in Philippines and the US"
+       )
+```
+      
+```{r infectionRate}
+top_infect <- states_testing[, .SD[unique(c(.N))], by=state, .SDcols= cols] %>% 
+  .[order(-infectionRate)] %>% .[, .(rank = 1:.N, state, state_code, testingRate, infectionRate)] %>% head(10)
+
+tab <- states_daily[state %in% top_infect$state] %>% 
+        .[, state_code := factor(state_code, levels = c('NY', 'NJ', 'CT', 'MA', 'RI', 'LA', 'DC', 'MI', 
+                                                        'DE', 'IL'))] %>% 
+        .[, state := factor(state, levels = c('New York', 'New Jersey', 'Connecticut', 'Massachusetts', 
+                                              'Rhode Island', 'Louisiana', 'District of Columbia', 'Michigan', 
+                                              'Delaware', 'Illinois'))]
+
+ggplot(tab, aes(x = day, y = infectionRate, colour = state)) +
+  geom_line(size = 1) +
+  expand_limits(y=0) +                            # ensures y axis to start at 0
+  scale_colour_manual(values = c(uhg1, uhg2, uhg3, uhg4, uhg5, uhg6, col7, col8, col9, col10, col11, col12, col13,
+                                 col14, col15)) +
+  scale_x_continuous(breaks = seq(0, 60, 5)) +
+  # scale_y_continuous(breaks = seq(0, 2.5, .5)) +
+  scale_y_continuous(limits = c(0, 2.0),
+                     breaks = seq(0, 2.0, by = .5)) +
+  theme_joy_s +
+  guides(col = guide_legend(nrow = 2, byrow = TRUE)) +
+  theme(legend.title = element_blank()) +
+  labs(x = "Day Since First Testing", y = "Infection Rate (%)",
+       title = "Daily Cumulative Infection Rate"#,  
+       # subtitle = "Life expectancy in Philippines and the US"
+       )
+```   
+
+Based from the states included in the testing rate above.
+
+```{r infectionRate_}
+top_test <- states_testing[, .SD[unique(c(.N))], by=state, .SDcols= cols] %>% 
+  .[order(-testingRate)] %>% .[, .(rank = 1:.N, state, state_code, testingRate)] %>% head(10)
+
+tab <- states_daily[state %in% top_test$state] %>% 
+        .[, state_code := factor(state_code, levels = c('RI', 'NY', 'LA', 'MA', 'UT', 'DC', 'NJ', 'VT', 'ND', 
+                                                        'CT'))] %>% 
+        .[, state := factor(state, levels = c('Rhode Island', 'New York', 'Louisiana', 'Massachusetts', 'Utah', 
+                                              'District of Columbia', 'New Jersey', 'Vermont', 'North Dakota',
+                                              'Connecticut'))]
+
+ggplot(tab, aes(x = day, y = infectionRate, colour = state)) +
+  geom_line(size = 1) +
+  expand_limits(y=0) +                            # ensures y axis to start at 0
+  scale_colour_manual(values = c(uhg1, uhg2, uhg3, uhg4, uhg5, uhg6, col7, col8, col9, col10, col11, col12, col13,
+                                 col14, col15)) +
+  scale_x_continuous(breaks = seq(0, 60, 5)) +
+  # scale_y_continuous(breaks = seq(0, 2.5, .5)) +
+  scale_y_continuous(limits = c(0, 2.0),
+                     breaks = seq(0, 2.0, by = .5)) +
+  theme_joy_s +
+  guides(col = guide_legend(nrow = 2, byrow = TRUE)) +
+  theme(legend.title = element_blank()) +
+  labs(x = "Day Since First Testing", y = "Infection Rate (%)",
+       title = "Daily Cumulative Infection Rate 2"#,  
+       # subtitle = "Life expectancy in Philippines and the US"
+       )
+```   
+      
+```{r positiveRate}
+top_positive <- states_positive[, .SD[unique(c(.N))], by=state, .SDcols= cols] %>% 
+  .[order(-positiveRate)] %>% .[, .(rank = 1:.N, state, state_code, testingRate, positiveRate)] %>% head(10)
+tab <- states_daily[state %in% top_positive$state, ..cols]%>% 
+        .[, state_code := factor(state_code, levels = c('NJ', 'NY', 'CT', 'MI', 'MA', 'GA', 'MP', 'CO', 'IL', 
+                                                        'DC'))] %>% 
+        .[, state := factor(state, levels = c('New Jersey', 'New York', 'Connecticut', 'Michigan', 'Massachusetts', 
+                                              'Georgia', 'Northern Mariana Islands','Colorado', 'Illinois',
+                                              'District of Columbia'))]
+ggplot(tab , aes(x = posDay, y = positiveRate, colour = state)) +
+  geom_line(size = 1) +
+  expand_limits(y=0) +                            # ensures y axis to start at 0
+  scale_colour_manual(values = c(uhg1, uhg2, uhg3, uhg4, uhg5, uhg6, col7, col8, col9, col10, col11, col12, col13,
+                                 col14, col15)) +
+  scale_x_continuous(breaks = seq(0, 60, 5)) +
+  # scale_y_continuous(breaks = seq(0, 20, 5)) +
+  theme_joy_s +
+  guides(col = guide_legend(nrow = 2, byrow = TRUE)) +
+  theme(legend.title = element_blank()) +
+  labs(x = "Day Since First Positive", y = "Positive Rate (%)",
+       title = "Daily Cumulative Positive Rate"#,  
+       # subtitle = "Life expectancy in Philippines and the US"
+       )
+```      
+
+```{r positiveRate-2}
+top_test <- states_testing[, .SD[unique(c(.N))], by=state, .SDcols= cols] %>% 
+  .[order(-testingRate)] %>% .[, .(rank = 1:.N, state, state_code, testingRate, positiveRate)] %>% head(10)
+
+tab <- states_daily[state %in% top_test$state] %>% 
+        .[, state_code := factor(state_code, levels = c('RI', 'NY', 'LA', 'MA', 'UT', 'DC', 'NJ', 'VT', 'ND', 
+                                                        'CT'))] %>% 
+        .[, state := factor(state, levels = c('Rhode Island', 'New York', 'Louisiana', 'Massachusetts', 'Utah', 
+                                              'District of Columbia', 'New Jersey', 'Vermont', 'North Dakota',
+                                              'Connecticut'))]
+ggplot(tab , aes(x = posDay, y = positiveRate, colour = state)) +
+  geom_line(size = 1) +
+  expand_limits(y=0) +                            # ensures y axis to start at 0
+  scale_colour_manual(values = c(uhg1, uhg2, uhg3, uhg4, uhg5, uhg6, col7, col8, col9, col10, col11, col12, col13,
+                                 col14, col15)) +
+  scale_x_continuous(breaks = seq(0, 60, 5)) +
+  # scale_y_continuous(breaks = seq(0, 20, 5)) +
+  theme_joy_s +
+  guides(col = guide_legend(nrow = 2, byrow = TRUE)) +
+  theme(legend.title = element_blank()) +
+  labs(x = "Day Since First Positive", y = "Positive Rate (%)",
+       title = "Daily Cumulative Positive Rate 2"#,  
+       # subtitle = "Life expectancy in Philippines and the US"
+       )
+
+```
+
+
+```{r, fig.show='asis', eval=FALSE}
+top_infect <- states_daily[, .SD[unique(c(.N))], by=state, .SDcols= cols] %>% 
+  .[order(-infectionRate)] %>% head(10)
+# states_daily[state %in% top_infect$state, ..cols]
+
+
+ggplot(states_daily[state %in% top_infect$state], aes(x = date, y = infectionRate, colour = state)) +
+  geom_line(size = 1) +
+  expand_limits(y=0) +                            # ensures y axis to start at 0
+  scale_colour_manual(values = c(uhg1, uhg2, uhg3, uhg4, uhg5, uhg6, col7, col8, col9, col10, col11, col12, col13,
+                                 col14, col15)) +
+  theme_joy_s +
+  guides(col = guide_legend(nrow = 2, byrow = TRUE)) +
+  theme(legend.title = element_blank()) +
+  labs(x = "Date", y = "Rate per 1000 people",
+       title = "Daily Cumulative Infection Rate"#,  
+       # subtitle = "Life expectancy in Philippines and the US"
+       )
+```
+
+
+```{r, eval=FALSE}
+states_daily[state == "New York" & day == 45, .(state, date, day, positive, negative, totalTestResults, pending,  total, confirmPerc, population, testingRate, infectionRate)]
+```
+
+
+```{r, fig.show='asis'}
+# top_test <- states_daily[, .SD[unique(c(.N))], by=state, .SDcols= cols] %>% 
+#   .[order(-testingRate)] %>% head(10)
+# # states_daily[state %in% top_test$state, ..cols]
+# 
+# tab <- states_daily[state %in% top_test$state] %>% 
+#         .[, state_code := factor(state_code, levels = c('RI', 'NY', 'LA', 'MA', 'UT', 'VT', 'NJ', 'ND', 'WA', 
+#                                                         'NM'))] %>% 
+#         .[, state := factor(state, levels = c('Rhode Island', 'New York', 'Louisiana', 'Massachusetts', 'Utah', 
+#                                               'Vermont', 'New Jersey', 'North Dakota', 'Washington', 'New Mexico'))]
+# 
+# ggplot(tab, aes(x = date, y = testingRate, colour = state)) +
+#   geom_line(size = 1) +
+#   expand_limits(y=0) +                            # ensures y axis to start at 0
+#   scale_colour_manual(values = c(uhg1, uhg2, uhg3, uhg4, uhg5, uhg6, col7, col8, col9, col10, col11, col12, col13,
+#                                  col14, col15)) +
+#   theme_joy_s +
+#   guides(col = guide_legend(nrow = 2, byrow = TRUE)) +
+#   theme(legend.title = element_blank()) +
+#   labs(x = "Date", y = "Testing Rate (%)",
+#        title = "Daily Cumulative Testing Rate"#,  
+#        # subtitle = "Life expectancy in Philippines and the US"
+#        )
+```
+
+```{r confirmPerc, fig.show='asis'}
+top_positive <- states_positive[, .SD[unique(c(.N))], by=state, .SDcols= cols] %>% 
+  .[order(-confirmPerc)] %>% .[, .(rank = 1:.N, state, state_code, testingRate, positiveRate, confirmPerc)] %>%
+  head(10)
+tab <- states_daily[state %in% top_positive$state, ..cols]%>% 
+        .[, state_code := factor(state_code, levels = c('NJ', 'NY', 'CT', 'MI', 'MA', 'GA', 'MP', 'CO', 'IL', 
+                                                        'DC'))] %>% 
+        .[, state := factor(state, levels = c('New Jersey', 'New York', 'Connecticut', 'Michigan', 'Massachusetts', 
+                                              'Georgia', 'Northern Mariana Islands', 'Colorado', 'Illinois',
+                                              'District of Columbia'))]
+
+
+ggplot(tab, aes(x = date, y = confirmPerc, colour = state)) +
+  geom_line(size = 1) +
+  expand_limits(y=0) +                            # ensures y axis to start at 0
+  scale_colour_manual(values = c(uhg1, uhg2, uhg3, uhg4, uhg5, uhg6, col7, col8, col9, col10, col11, col12, col13,
+                                 col14, col15)) +
+  theme_joy_s +
+  guides(col = guide_legend(nrow = 2, byrow = TRUE)) +
+  theme(legend.title = element_blank()) +
+  labs(x = "Date", y = "Confirmed Cases (%)",
+       title = "Confirmed Case Rate"#,
+       # subtitle = "Life expectancy in Philippines and the US"
+       )
+
+ggplot(tab, aes(x = posDay, y = confirmPerc, colour = state)) +
+  geom_line(size = 1) +
+  expand_limits(y=0) +                            # ensures y axis to start at 0
+  scale_colour_manual(values = c(uhg1, uhg2, uhg3, uhg4, uhg5, uhg6, col7, col8, col9, col10, col11, col12, col13,
+                                 col14, col15)) +
+  scale_x_continuous(breaks = seq(0, 60, 5)) +
+  theme_joy_s +
+  guides(col = guide_legend(nrow = 2, byrow = TRUE)) +
+  theme(legend.title = element_blank()) +
+  labs(x = "Date", y = "Confirmed Cases (%)",
+       title = "Confirmed Case Rate"#,
+       # subtitle = "Life expectancy in Philippines and the US"
+       )
+```
+
+
